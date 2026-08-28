@@ -1,0 +1,6 @@
+{
+  "name": "EthioSchool ERP & LMS Platform",
+  "description": "Commercial-grade School Management System (SMS) + Learning Management System (LMS) with Ethiopian calendar, multilingual support (English, Amharic, Afaan Oromo), multi-school SaaS, student/teacher/parent portals, grading, online exams, finance, and offline sync.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
