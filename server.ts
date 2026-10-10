@@ -94,7 +94,7 @@ function getRequestSupabase(req: express.Request) {
   const supabaseUrl = process.env.SUPABASE_URL;
   const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
   const authorization = req.header('authorization') || '';
-  const match = authorization.match(/^Bearer\\s+(.+)$/i);
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
   if (!supabaseUrl || !publishableKey || !match) {
     throw new Error('Supabase request configuration is missing.');
   }
