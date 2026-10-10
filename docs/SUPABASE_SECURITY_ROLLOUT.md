@@ -11,7 +11,7 @@
 ## Database foundation added
 A second migration, `supabase/migrations/202610100002_core_school_data.sql`, creates initial PostgreSQL tables for schools, students, teachers, attendance, exams, exam results, and fee payments. It adds tenant-scoped RLS policies and role-limited write access. Student/parent-specific access to individual records is intentionally not granted yet because the account-to-student/parent relationship tables have not been implemented.
 
-**This schema is not yet wired into the Express routes.** Existing API routes still read/write the in-memory store until they are migrated and tested. Apply migrations in filename order in a non-production Supabase project first.
+The student list, detail, create, update, and promotion Express endpoints now query the Supabase `students` table, with `school_id` taken from the authenticated profile rather than the request body. They return database-backed records and no longer fall back to in-memory seed students. Related grade/section/result/attendance/payment details are not yet migrated and are returned as empty placeholders in the student-detail endpoint. Other application modules still use in-memory seed data. Apply migrations in filename order in a non-production Supabase project first; ensure the matching `schools` row exists before creating students.
 
 ## Required configuration
 Frontend hosting:
