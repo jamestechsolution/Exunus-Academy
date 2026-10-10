@@ -91,8 +91,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [selectedRoleTab, setSelectedRoleTab] = useState<RoleTab>('admin');
 
   // Form State
-  const [identifier, setIdentifier] = useState('admin@exunus.edu.et');
-  const [password, setPassword] = useState('Exunus@2025');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -112,7 +112,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   // -------------------------------------------------------------
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotStep, setForgotStep] = useState<'request' | 'verify_and_reset' | 'completed'>('request');
-  const [forgotEmail, setForgotEmail] = useState('admin@exunus.edu.et');
+  const [forgotEmail, setForgotEmail] = useState('');
   const [forgotEmailError, setForgotEmailError] = useState<string | null>(null);
   const [generatedRecoveryToken, setGeneratedRecoveryToken] = useState<string>('');
   const [recoveryTokenInput, setRecoveryTokenInput] = useState('');
@@ -313,7 +313,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   // Quick-fill credentials helper
   const handleQuickFill = (userEmail: string, altEmail?: string) => {
     setIdentifier(altEmail || userEmail);
-    setPassword('Exunus@2025');
+    setPassword('');
     setValidationErrors({});
   };
 
