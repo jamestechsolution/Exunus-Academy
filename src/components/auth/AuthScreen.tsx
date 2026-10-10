@@ -32,6 +32,7 @@ import {
 import { User as UserType, UserRole, School, LanguageCode, CalendarType } from '../../types';
 import { useTranslation } from '../../utils/i18n';
 import { formatEduDate, getCurrentAcademicYearLabel } from '../../utils/ethiopianCalendar';
+import { supabase, supabaseConfigured } from '../../services/supabase';
 
 interface AuthScreenProps {
   schools: School[];
@@ -338,73 +339,95 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     return Object.keys(errors).length === 0;
   };
 
-  // Submit Handler
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  // Authenticate with Supabase; never infer identity from seed/demo users.
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
+    if (!supabaseConfigured || !supabase) {
+      setValidationErrors({ general: 'Authentication is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in your deployment environment.' });
+      return;
+    }
 
     setIsLoading(true);
     setValidationErrors({});
 
-    // Simulate network authentication & credential matching
-    setTimeout(() => {
-      const searchNormalized = identifier.trim().toLowerCase();
-
-      // Find matching user from seed database
-      const matchedUser = users.find(u => {
-        const emailMatch = u.email.toLowerCase() === searchNormalized;
-        const exunusEmailMatch = u.email.split('@')[0].toLowerCase() === searchNormalized.split('@')[0].toLowerCase();
-        const phoneMatch = u.phone && u.phone.replace(/[\s+-]/g, '') === searchNormalized.replace(/[\s+-]/g, '');
-
-        // Check if role matches category
-        const roleAllowed =
-          selectedRoleTab === 'admin'
-            ? ['super_admin', 'school_admin', 'principal', 'vice_principal', 'academic_director'].includes(u.role)
-            : selectedRoleTab === 'teacher'
-            ? u.role === 'teacher'
-            : selectedRoleTab === 'student'
-            ? u.role === 'student'
-            : selectedRoleTab === 'parent'
-            ? u.role === 'parent'
-            : ['accountant', 'librarian', 'hr_manager', 'transport_manager', 'store_manager', 'registrar'].includes(u.role);
-
-        return (emailMatch || exunusEmailMatch || phoneMatch) && roleAllowed;
-      }) || users.find(u => {
-        // Fallback: match by role if user typed standard demo credentials
-        if (selectedRoleTab === 'admin') return u.role === 'school_admin';
-        if (selectedRoleTab === 'teacher') return u.role === 'teacher';
-        if (selectedRoleTab === 'student') return u.role === 'student';
-        if (selectedRoleTab === 'parent') return u.role === 'parent';
-        if (selectedRoleTab === 'finance') return u.role === 'accountant';
-        return false;
-      });
-
-      if (!matchedUser) {
-        setIsLoading(false);
-        setValidationErrors({
-          general:
-            language === 'am'
-              ? 'የተሳሳተ መለያ ወይም የይለፍ ቃል! እባክዎ ትክክለኛውን ሚና ይምረጡ ወይም ከታች ያሉትን የሙከራ አካውንቶች ይጠቀሙ።'
-              : 'Invalid credentials for the selected role. Please verify your role selection or click one of the quick test accounts below.'
+    try {
+      const normalized = identifier.trim();
+      if (normalized.includes('@')) {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: normalized,
+          password,
         });
-        return;
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase.functions.invoke('login-with-username', {
+          body: { username: normalized, password },
+        });
+        if (error || !data?.access_token || !data?.refresh_token) {
+          throw new Error('Invalid username/email or password.');
+        }
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+        });
+        if (sessionError) throw sessionError;
       }
 
-      // Check if 2FA is triggered
-      if (selectedRoleTab === 'admin' && identifier.toLowerCase().includes('super')) {
-        // Trigger simulated 2FA for superadmin
-        const generatedCode = '984210';
-        setSimulatedOtp(generatedCode);
-        setPendingUser(matchedUser);
-        setIs2FARequired(true);
-        setIsLoading(false);
-        return;
+      const { data: userResult, error: userError } = await supabase.auth.getUser();
+      if (userError || !userResult.user) throw new Error('Unable to verify your account.');
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, username, full_name, app_role, school_id, phone, is_active')
+        .eq('id', userResult.user.id)
+        .single();
+
+      if (profileError || !profile || !profile.is_active) {
+        await supabase.auth.signOut();
+        throw new Error('Your account profile is not active or has not been provisioned. Contact your school administrator.');
       }
 
-      // Successful authentication
+      const role = profile.app_role as UserType['role'];
+      const allowedRoles: Record<RoleTab, string[]> = {
+        admin: ['super_admin', 'school_admin', 'principal', 'vice_principal', 'academic_director'],
+        teacher: ['teacher'],
+        student: ['student'],
+        parent: ['parent'],
+        finance: ['accountant', 'librarian', 'hr_manager', 'transport_manager', 'store_manager', 'registrar'],
+      };
+
+      if (!allowedRoles[selectedRoleTab].includes(role)) {
+        await supabase.auth.signOut();
+        throw new Error('This account does not have access to the selected portal. Choose the correct role.');
+      }
+
+      const profileSchool = schools.find((school) => school.id === profile.school_id);
+      if (!profileSchool) {
+        await supabase.auth.signOut();
+        throw new Error('Your account is not linked to a valid school. Contact the administrator.');
+      }
+
+      const authenticatedUser: UserType = {
+        id: userResult.user.id,
+        schoolId: profile.school_id,
+        name: profile.full_name || userResult.user.user_metadata?.full_name || userResult.user.email || 'Academy User',
+        email: userResult.user.email || '',
+        phone: profile.phone || undefined,
+        role,
+        isActive: profile.is_active,
+        createdAt: userResult.user.created_at,
+      };
+
+      onLoginSuccess(authenticatedUser, profileSchool, rememberMe);
+    } catch (error) {
+      setValidationErrors({
+        general: error instanceof Error
+          ? error.message
+          : 'Unable to sign in. Check your credentials and try again.',
+      });
+    } finally {
       setIsLoading(false);
-      onLoginSuccess(matchedUser, activeSchool, rememberMe);
-    }, 700);
+    }
   };
 
   // OTP Verification Handler
