@@ -8,6 +8,11 @@
 - The frontend API service attaches the active Supabase access token.
 - Legacy fake-token login and persona-switching endpoints have been removed from the Express server.
 
+## Database foundation added
+A second migration, `supabase/migrations/202610100002_core_school_data.sql`, creates initial PostgreSQL tables for schools, students, teachers, attendance, exams, exam results, and fee payments. It adds tenant-scoped RLS policies and role-limited write access. Student/parent-specific access to individual records is intentionally not granted yet because the account-to-student/parent relationship tables have not been implemented.
+
+**This schema is not yet wired into the Express routes.** Existing API routes still read/write the in-memory store until they are migrated and tested. Apply migrations in filename order in a non-production Supabase project first.
+
 ## Required configuration
 Frontend hosting:
 - `VITE_SUPABASE_URL`
