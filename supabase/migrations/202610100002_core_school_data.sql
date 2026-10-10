@@ -156,6 +156,7 @@ using (exists (
   select 1 from public.profiles p
   where p.id = auth.uid() and p.is_active = true
     and p.school_id = students.school_id
+    and p.app_role in ('super_admin','school_admin','principal','vice_principal','academic_director','registrar','teacher')
 ));
 
 drop policy if exists students_staff_write on public.students;
