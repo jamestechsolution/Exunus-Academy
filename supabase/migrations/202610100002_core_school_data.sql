@@ -257,7 +257,7 @@ using (exists (
   select 1 from public.profiles p
   where p.id = auth.uid() and p.is_active = true
     and p.school_id = exam_results.school_id
-    and p.app_role in ('super_admin','school_admin','principal','vice_principal','academic_director','registrar','teacher','student','parent')
+    and p.app_role in ('super_admin','school_admin','principal','vice_principal','academic_director','registrar','teacher')
 ));
 
 drop policy if exists exam_results_staff_write on public.exam_results;
