@@ -35,6 +35,7 @@ import {
   INITIAL_AUDIT_LOGS
 } from './src/data/seedData';
 import { GoogleGenAI } from '@google/genai';
+import { createClient } from '@supabase/supabase-js';
 
 // In-Memory Database Store (Initialized from Seed Data, allows full persistent state during session)
 const db = {
@@ -107,33 +108,50 @@ async function startServer() {
     });
   });
 
-  // --- AUTHENTICATION ---
-  app.post('/api/auth/login', (req, res) => {
-    const { email, password } = req.body;
-    const user = db.users.find(u => u.email.toLowerCase() === (email || '').toLowerCase().trim());
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials or user not found' });
-    }
-    const school = db.schools.find(s => s.id === user.schoolId) || db.schools[0];
-    res.json({
-      token: `jwt_token_${user.id}_${Date.now()}`,
-      user,
-      school
-    });
-  });
+  // --- API AUTHENTICATION ---
+  // All /api routes below this point require a valid Supabase access token and
+  // an active provisioned profile. The health endpoint above remains public.
+  app.use('/api', async (req, res, next) => {
+    const authorization = req.header('authorization') || '';
+    const match = authorization.match(/^Bearer\s+(.+)$/i);
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const publishableKey =
+      process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
 
-  app.post('/api/auth/switch-persona', (req, res) => {
-    const { userId } = req.body;
-    const user = db.users.find(u => u.id === userId);
-    if (!user) {
-      return res.status(404).json({ error: 'Persona user not found' });
+    if (!match || !supabaseUrl || !publishableKey) {
+      return res.status(401).json({ error: 'Authentication required.' });
     }
-    const school = db.schools.find(s => s.id === user.schoolId) || db.schools[0];
-    res.json({
-      token: `jwt_token_${user.id}_${Date.now()}`,
-      user,
-      school
-    });
+
+    try {
+      const token = match[1];
+      const authClient = createClient(supabaseUrl, publishableKey, {
+        global: { headers: { Authorization: `Bearer ${token}` } },
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const { data: authData, error: authError } = await authClient.auth.getUser(token);
+      if (authError || !authData.user) {
+        return res.status(401).json({ error: 'Invalid or expired session.' });
+      }
+
+      const { data: profile, error: profileError } = await authClient
+        .from('profiles')
+        .select('id, app_role, school_id, is_active')
+        .eq('id', authData.user.id)
+        .single();
+
+      if (profileError || !profile || !profile.is_active) {
+        return res.status(403).json({ error: 'Active academy profile required.' });
+      }
+
+      (req as any).academyAuth = {
+        userId: authData.user.id,
+        role: profile.app_role,
+        schoolId: profile.school_id,
+      };
+      return next();
+    } catch {
+      return res.status(401).json({ error: 'Unable to verify session.' });
+    }
   });
 
   // --- SCHOOLS & SYSTEM SETUP ---
