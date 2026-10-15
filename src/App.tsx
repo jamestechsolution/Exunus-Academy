@@ -60,6 +60,7 @@ import {
 import { apiService } from './services/api';
 import { useTranslation } from './utils/i18n';
 import { smsNotificationService } from './services/smsNotificationService';
+import { supabase, supabaseConfigured } from './services/supabase';
 
 // Components
 import { Header } from './components/common/Header';
@@ -110,14 +111,7 @@ export default function App() {
   const [currentUserId, setCurrentUserId] = useState<string>('user-admin');
 
   // Authentication State (Forced login for Exunus Academy)
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    try {
-      const session = localStorage.getItem('exunus_auth_session') || sessionStorage.getItem('exunus_auth_session');
-      return !!session;
-    } catch {
-      return false;
-    }
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
   // App settings
   const [language, setLanguage] = useState<LanguageCode>('en');
@@ -236,6 +230,25 @@ export default function App() {
     loadData();
   }, []);
 
+  // Supabase is the source of truth for the signed-in session.
+  useEffect(() => {
+    if (!supabaseConfigured || !supabase) {
+      setIsAuthenticated(false);
+      return;
+    }
+    let active = true;
+    void supabase.auth.getSession().then(({ data, error }) => {
+      if (active) setIsAuthenticated(!error && Boolean(data.session));
+    });
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (active) setIsAuthenticated(Boolean(session));
+    });
+    return () => {
+      active = false;
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
   // Handlers
   const handleLoginSuccess = (user: User, school: School, rememberMe: boolean) => {
     setCurrentUserId(user.id);
@@ -261,14 +274,13 @@ export default function App() {
       console.error('Session clear error:', err);
     }
     setIsAuthenticated(false);
+    if (supabase) void supabase.auth.signOut();
   };
 
-  const handleSwitchPersona = (userId: string) => {
-    setCurrentUserId(userId);
-    const targetUser = users.find(u => u.id === userId);
-    if (targetUser) {
-      if (targetUser.schoolId) setCurrentSchoolId(targetUser.schoolId);
-    }
+  const handleSwitchPersona = (_userId: string) => {
+    // Persona switching was a demo shortcut and must not grant another user's role.
+    // Users must sign out and authenticate with their own Supabase account.
+    return;
   };
 
   const handleCreateStudent = async (data: Partial<Student>) => {

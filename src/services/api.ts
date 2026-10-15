@@ -29,14 +29,28 @@ import {
   AppNotification,
   AuditLog
 } from '../types';
+import { supabase } from './supabase';
 
 const API_BASE = '/api';
+
+// Attach the current Supabase access token to API requests.
+// Requests without a session are rejected by the protected server API.
+async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
+  const sessionResult = await supabase?.auth.getSession();
+  const token = sessionResult?.data.session?.access_token;
+  const headers = new Headers(init.headers || {});
+  if (init.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  return fetch(input, { ...init, headers });
+}
 
 export const api = {
   // Auth
   async login(email: string, password?: string): Promise<{ data: { token: string; user: User; school: School } }> {
     try {
-      const res = await fetch(`${API_BASE}/auth/login`, {
+      const res = await apiFetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -50,7 +64,7 @@ export const api = {
 
   async switchPersona(userId: string): Promise<{ data: { token: string; user: User; school: School } }> {
     try {
-      const res = await fetch(`${API_BASE}/auth/switch-persona`, {
+      const res = await apiFetch(`${API_BASE}/auth/switch-persona`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId })
@@ -65,7 +79,7 @@ export const api = {
   // Schools
   async getSchools(): Promise<{ data: School[] }> {
     try {
-      const res = await fetch(`${API_BASE}/schools`);
+      const res = await apiFetch(`${API_BASE}/schools`);
       const data = await res.json();
       return { data };
     } catch {
@@ -74,7 +88,7 @@ export const api = {
   },
 
   async createSchool(data: Partial<School>): Promise<{ data: School }> {
-    const res = await fetch(`${API_BASE}/schools`, {
+    const res = await apiFetch(`${API_BASE}/schools`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -86,7 +100,7 @@ export const api = {
   // Structure
   async getGradeLevels(): Promise<{ data: GradeLevel[] }> {
     try {
-      const res = await fetch(`${API_BASE}/grade-levels`);
+      const res = await apiFetch(`${API_BASE}/grade-levels`);
       return { data: await res.json() };
     } catch {
       return { data: [] };
@@ -95,7 +109,7 @@ export const api = {
 
   async getSections(): Promise<{ data: Section[] }> {
     try {
-      const res = await fetch(`${API_BASE}/sections`);
+      const res = await apiFetch(`${API_BASE}/sections`);
       return { data: await res.json() };
     } catch {
       return { data: [] };
@@ -104,7 +118,7 @@ export const api = {
 
   async getSubjects(): Promise<{ data: Subject[] }> {
     try {
-      const res = await fetch(`${API_BASE}/subjects`);
+      const res = await apiFetch(`${API_BASE}/subjects`);
       return { data: await res.json() };
     } catch {
       return { data: [] };
@@ -114,7 +128,7 @@ export const api = {
   // Students
   async getStudents(): Promise<{ data: Student[] }> {
     try {
-      const res = await fetch(`${API_BASE}/students`);
+      const res = await apiFetch(`${API_BASE}/students`);
       return { data: await res.json() };
     } catch {
       return { data: [] };
@@ -122,7 +136,7 @@ export const api = {
   },
 
   async createStudent(studentData: Partial<Student>): Promise<{ data: Student }> {
-    const res = await fetch(`${API_BASE}/students`, {
+    const res = await apiFetch(`${API_BASE}/students`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(studentData)
@@ -133,7 +147,7 @@ export const api = {
   // Teachers
   async getTeachers(): Promise<{ data: Teacher[] }> {
     try {
-      const res = await fetch(`${API_BASE}/teachers`);
+      const res = await apiFetch(`${API_BASE}/teachers`);
       return { data: await res.json() };
     } catch {
       return { data: [] };
@@ -143,7 +157,7 @@ export const api = {
   // Attendance
   async getAttendance(): Promise<{ data: AttendanceRecord[] }> {
     try {
-      const res = await fetch(`${API_BASE}/attendance`);
+      const res = await apiFetch(`${API_BASE}/attendance`);
       return { data: await res.json() };
     } catch {
       return { data: [] };
@@ -151,7 +165,7 @@ export const api = {
   },
 
   async recordAttendance(data: any): Promise<any> {
-    const res = await fetch(`${API_BASE}/attendance`, {
+    const res = await apiFetch(`${API_BASE}/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -162,7 +176,7 @@ export const api = {
   // Exams & Results
   async getExams(): Promise<{ data: Exam[] }> {
     try {
-      const res = await fetch(`${API_BASE}/exams`);
+      const res = await apiFetch(`${API_BASE}/exams`);
       return { data: await res.json() };
     } catch {
       return { data: [] };
@@ -171,7 +185,7 @@ export const api = {
 
   async getExamResults(): Promise<{ data: ExamResult[] }> {
     try {
-      const res = await fetch(`${API_BASE}/results`);
+      const res = await apiFetch(`${API_BASE}/results`);
       return { data: await res.json() };
     } catch {
       return { data: [] };
@@ -179,7 +193,7 @@ export const api = {
   },
 
   async recordExamMarks(data: any): Promise<any> {
-    const res = await fetch(`${API_BASE}/results`, {
+    const res = await apiFetch(`${API_BASE}/results`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -190,7 +204,7 @@ export const api = {
   // Payments
   async getPayments(): Promise<{ data: PaymentTransaction[] }> {
     try {
-      const res = await fetch(`${API_BASE}/payments`);
+      const res = await apiFetch(`${API_BASE}/payments`);
       return { data: await res.json() };
     } catch {
       return { data: [] };
@@ -198,7 +212,7 @@ export const api = {
   },
 
   async recordPayment(data: Partial<PaymentTransaction>): Promise<{ data: PaymentTransaction }> {
-    const res = await fetch(`${API_BASE}/payments`, {
+    const res = await apiFetch(`${API_BASE}/payments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -209,7 +223,7 @@ export const api = {
   // LMS
   async getCourses(): Promise<{ data: LMSCourse[] }> {
     try {
-      const res = await fetch(`${API_BASE}/lms/courses`);
+      const res = await apiFetch(`${API_BASE}/lms/courses`);
       return { data: await res.json() };
     } catch {
       return { data: [] };
@@ -218,7 +232,7 @@ export const api = {
 
   async getAssignments(): Promise<{ data: LMSAssignment[] }> {
     try {
-      const res = await fetch(`${API_BASE}/lms/assignments`);
+      const res = await apiFetch(`${API_BASE}/lms/assignments`);
       return { data: await res.json() };
     } catch {
       return { data: [] };
@@ -227,7 +241,7 @@ export const api = {
 
   async getQuizzes(): Promise<{ data: LMSQuiz[] }> {
     try {
-      const res = await fetch(`${API_BASE}/lms/quizzes`);
+      const res = await apiFetch(`${API_BASE}/lms/quizzes`);
       return { data: await res.json() };
     } catch {
       return { data: [] };
@@ -236,7 +250,7 @@ export const api = {
 
   async getLiveClasses(): Promise<{ data: LMSLiveClass[] }> {
     try {
-      const res = await fetch(`${API_BASE}/lms/live-classes`);
+      const res = await apiFetch(`${API_BASE}/lms/live-classes`);
       return { data: await res.json() };
     } catch {
       return { data: [] };
@@ -245,7 +259,7 @@ export const api = {
 
   async getCertificates(): Promise<{ data: LMSCertificate[] }> {
     try {
-      const res = await fetch(`${API_BASE}/lms/certificates`);
+      const res = await apiFetch(`${API_BASE}/lms/certificates`);
       return { data: await res.json() };
     } catch {
       return { data: [] };
@@ -255,7 +269,7 @@ export const api = {
   // Library & Assets
   async getBooks(): Promise<{ data: LibraryBook[] }> {
     try {
-      const res = await fetch(`${API_BASE}/library/books`);
+      const res = await apiFetch(`${API_BASE}/library/books`);
       return { data: await res.json() };
     } catch {
       return { data: [] };
@@ -264,7 +278,7 @@ export const api = {
 
   async getInventory(): Promise<{ data: InventoryItem[] }> {
     try {
-      const res = await fetch(`${API_BASE}/inventory`);
+      const res = await apiFetch(`${API_BASE}/inventory`);
       return { data: await res.json() };
     } catch {
       return { data: [] };
@@ -273,7 +287,7 @@ export const api = {
 
   async getTransportRoutes(): Promise<{ data: TransportRoute[] }> {
     try {
-      const res = await fetch(`${API_BASE}/transport`);
+      const res = await apiFetch(`${API_BASE}/transport`);
       return { data: await res.json() };
     } catch {
       return { data: [] };
@@ -282,7 +296,7 @@ export const api = {
 
   async getAdmissions(): Promise<{ data: AdmissionApplication[] }> {
     try {
-      const res = await fetch(`${API_BASE}/admissions`);
+      const res = await apiFetch(`${API_BASE}/admissions`);
       return { data: await res.json() };
     } catch {
       return { data: [] };
@@ -291,7 +305,7 @@ export const api = {
 
   async getAnnouncements(): Promise<{ data: Announcement[] }> {
     try {
-      const res = await fetch(`${API_BASE}/announcements`);
+      const res = await apiFetch(`${API_BASE}/announcements`);
       return { data: await res.json() };
     } catch {
       return { data: [] };
@@ -300,7 +314,7 @@ export const api = {
 
   async getAuditLogs(): Promise<{ data: AuditLog[] }> {
     try {
-      const res = await fetch(`${API_BASE}/audit-logs`);
+      const res = await apiFetch(`${API_BASE}/audit-logs`);
       return { data: await res.json() };
     } catch {
       return { data: [] };
@@ -318,7 +332,7 @@ export const api = {
     }
   }> {
     try {
-      const res = await fetch(`${API_BASE}/ai/student-insight`, {
+      const res = await apiFetch(`${API_BASE}/ai/student-insight`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ studentId, results, attendance })
@@ -340,7 +354,7 @@ export const api = {
 
   async generateQuizQuestions(topic: string, gradeLevel: string | number, count: number): Promise<{ data: any[] }> {
     try {
-      const res = await fetch(`${API_BASE}/ai/generate-quiz-questions`, {
+      const res = await apiFetch(`${API_BASE}/ai/generate-quiz-questions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topic, gradeLevel, count })
